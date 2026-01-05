@@ -15,8 +15,9 @@ class NetOpsStateMachine:
     def __init__(self):
         self.monitor=MonitoringAgent()
         self.diagnose=DiagnosisAgent()
-        self.audit=AuditAgent()
         self.act=ActionAgent()
+        self.audit=AuditAgent()
+        
         
     def run(self,metrics,post_action_metrics):
         incident=self.monitor.detect(metrics)
