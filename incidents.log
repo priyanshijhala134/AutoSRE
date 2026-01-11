@@ -1,3 +1,1 @@
-{"timestamp": "2026-01-08T21:30:24.826742", "incident_type": "HIGH_CPU", "cpu_before": 0.7979214297463553, "cpu_after": 0.8459292343387471, "action_taken": "restart_nginx", "success": false}
-{"timestamp": "2026-01-08T21:35:04.242858", "incident_type": "HIGH_CPU", "cpu_before": 0.9997968299126194, "cpu_after": 0.8103214008418128, "action_taken": "restart_nginx", "success": false}
-{"timestamp": "2026-01-08T21:37:05.250329", "incident_type": "HIGH_CPU", "cpu_before": 0.9999602707712144, "cpu_after": 0.779867379032258, "action_taken": "restart_nginx", "success": true}
+{"timestamp": "2026-01-11T11:01:59.829985", "incident_type": "HIGH_CPU", "cpu_before": 0.8700522412819748, "cpu_after": 0.7877220057663835, "action_taken": "heal", "success": true}
