@@ -149,9 +149,3 @@ docker compose up
 python -m core.runner
 streamlit run frontend/dashboard.py
 ```
-
----
-
-## Author Notes
-
-This project was built with an emphasis on **engineering discipline**, not demo-only AI usage. Every autonomous action is auditable, reversible, and policy-constrained.
