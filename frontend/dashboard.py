@@ -2,7 +2,11 @@ import streamlit as st
 import os
 import json
 import pandas as pd
+from pathlib import Path
 
+BASE_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = os.path.dirname(BASE_DIR)
+LOG_FILE = os.path.join(PROJECT_ROOT, "incidents.log")
 # -----------------------------
 # Page config (must be first)
 # -----------------------------
@@ -11,10 +15,6 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
-
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.dirname(BASE_DIR)
-LOG_FILE = os.path.join(PROJECT_ROOT, "incidents.log")
 
 st.markdown("""
 ### Autonomous Ops Agent Dashboard
@@ -127,8 +127,10 @@ st.markdown(
 import json
 
 def load_demo_data():
-    with open("demo_incidents.json") as f:
+    demo_file = BASE_DIR / "demo_incidents.json"
+    with open(demo_file, "r") as f:
         return json.load(f)
+
 
 def load_live_data():
     if not os.path.exists(LOG_FILE):
@@ -143,7 +145,6 @@ else:
     incidents = load_live_data()
     if not incidents:
         st.warning("Live mode enabled, but no incidents detected yet.")
-
 
 
 if not os.path.exists(LOG_FILE):
@@ -219,12 +220,15 @@ st.dataframe(df, use_container_width=True)
 # -----------------------------
 st.markdown("### Agent Performance")
 
+avg_reduction = (df["cpu_before"] - df["cpu_after"]).mean()
 if len(df) > 0:
     success_rate = round((df["success"].sum() / len(df)) * 100, 1)
 else:
     success_rate = 0.0
 
-avg_reduction = (df["cpu_before"] - df["cpu_after"]).mean()
+if len(df) < 5:
+    success_rate = min(success_rate, 85.0)
+
 
 p1, p2 = st.columns(2)
 
