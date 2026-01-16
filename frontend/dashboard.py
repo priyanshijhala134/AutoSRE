@@ -12,8 +12,12 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(BASE_DIR)
+LOG_FILE = os.path.join(PROJECT_ROOT, "incidents.log")
+
 st.markdown("""
-### 🤖 Autonomous Ops Agent Dashboard
+### Autonomous Ops Agent Dashboard
 
 This dashboard visualizes an **Agentic AI system** that detects infrastructure failures,
 reasons about corrective actions using an LLM under safety constraints,
@@ -140,9 +144,7 @@ else:
     if not incidents:
         st.warning("Live mode enabled, but no incidents detected yet.")
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.dirname(BASE_DIR)
-LOG_FILE = os.path.join(PROJECT_ROOT, "incidents.log")
+
 
 if not os.path.exists(LOG_FILE):
     st.error("No incident logs found.")
@@ -217,7 +219,11 @@ st.dataframe(df, use_container_width=True)
 # -----------------------------
 st.markdown("### Agent Performance")
 
-success_rate = df["success"].mean() * 100
+if len(df) > 0:
+    success_rate = round((df["success"].sum() / len(df)) * 100, 1)
+else:
+    success_rate = 0.0
+
 avg_reduction = (df["cpu_before"] - df["cpu_after"]).mean()
 
 p1, p2 = st.columns(2)
