@@ -220,21 +220,20 @@ st.dataframe(df, use_container_width=True)
 # -----------------------------
 st.markdown("### Agent Performance")
 
-success_rate = df["success"].mean() * 100
 avg_reduction = (df["cpu_before"] - df["cpu_after"]).mean()
 
 p1, p2 = st.columns(2)
 
-with p1:
-    st.markdown(
-        f"""
-        <div class="card">
-            <div class="metric-title">Success Rate (%)</div>
-            <div class="metric-value">{success_rate:.1f}</div>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+# with p1:
+#     st.markdown(
+#         f"""
+#         <div class="card">
+#             <div class="metric-title">Success Rate (%)</div>
+#             <div class="metric-value">{success_rate:.1f}</div>
+#         </div>
+#         """,
+#         unsafe_allow_html=True
+#     )
 
 with p2:
     st.markdown(
