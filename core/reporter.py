@@ -10,10 +10,14 @@ def generate_incident_report(
     cpu_before,
     cpu_after,
     action_taken,
+    agent_trace=None,
+    rca=None,
+    summary=None,
+    memory_before=None,
 ):
     success = (
-        cpu_after < CPU_RECOVERY_THRESHOLD and
-        (cpu_before - cpu_after) >= MIN_CPU_IMPROVEMENT
+        cpu_after < CPU_RECOVERY_THRESHOLD
+        and (cpu_before - cpu_after) >= MIN_CPU_IMPROVEMENT
     )
 
     report = {
@@ -21,8 +25,12 @@ def generate_incident_report(
         "incident_type": incident_type,
         "cpu_before": cpu_before,
         "cpu_after": cpu_after,
+        "memory_before": memory_before,
         "action_taken": action_taken,
-        "success": success
+        "success": success,
+        "rca": rca,
+        "summary": summary,
+        "agent_trace": agent_trace or [],
     }
 
     save_report(report)
@@ -31,4 +39,4 @@ def generate_incident_report(
 
 def save_report(report, path="incidents.log"):
     with open(path, "a") as f:
-        f.write(json.dumps(report)+"\n")
+        f.write(json.dumps(report) + "\n")

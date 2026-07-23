@@ -1,82 +1,32 @@
-#LLM provider is swappable (Gemini/OpenAI) without changing agent logic
-import os
-import json
-from google import genai  
+"""Deprecated: use diagnostician_agent and planner_agent instead."""
 
-# ===== CONFIG =====
-USE_LLM = True
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+from agents.diagnostician_agent import diagnose
+from agents.planner_agent import plan_action
+from core.memory import count_recent_fails
+
 
 def decide_action_llm(
     state: str,
     cpu_before: float,
     cpu_after: float | None,
-    recent_failures: int
+    recent_failures: int,
+    safe_threshold: float = 0.6,
 ):
-    # -------- HARD SAFETY GATES --------
     if state == "NORMAL":
         return {
             "decision": "do_nothing",
-            "reasoning": ["CPU below safe threshold"]
+            "reasoning": ["CPU below safe threshold"],
         }
 
     if recent_failures >= 2:
         return {
             "decision": "escalate",
-            "reasoning": ["Multiple failed recoveries detected"]
+            "reasoning": ["Multiple failed recoveries detected"],
         }
 
-    # -------- RULE-BASED FALLBACK --------
-    if not GOOGLE_API_KEY:
-        return {
-            "decision": "heal",
-            "reasoning": ["Rule-based fallback (no LLM key)"]
-        }
-
-    # -------- GEMINI PLANNING --------
-    try:
-        # 1. Initialize Client
-        client = genai.Client(api_key=GOOGLE_API_KEY)
-
-        prompt = f"""
-You are an SRE planning agent.
-
-You DO NOT detect incidents.
-You ONLY choose an action.
-
-Allowed actions:
-- heal
-- escalate
-- do_nothing
-
-State: {state}
-CPU before: {cpu_before}
-Recent failures: {recent_failures}
-
-Respond ONLY in JSON:
-{{
-  "decision": "...",
-  "reasoning": ["step1", "step2"]
-}}
-"""
-        # 2. Generate Content 
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",  
-            contents=prompt
-        )
-        
-        # 3. Extract Text
-        text = response.text.strip()
-        
-        
-        if text.startswith("```"):
-            text = text.replace("```json", "").replace("```", "").strip()
-
-        return json.loads(text)
-
-    except Exception as e:
-        print(f"LLM Error: {e}")
-        return {
-            "decision": "escalate",
-            "reasoning": [f"Gemini error, failing safe: {str(e)}"]
-        }
+    diag = diagnose("HIGH_CPU", cpu_before, None)
+    plan = plan_action("HIGH_CPU", cpu_before, diag["rca"], recent_failures)
+    return {
+        "decision": plan["proposed_action"],
+        "reasoning": plan.get("reasoning", []),
+    }

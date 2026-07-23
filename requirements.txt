@@ -1,2 +1,6 @@
-streamlit 
+streamlit
 pandas
+python-dotenv
+google-genai
+langgraph
+requests

@@ -1,136 +1,210 @@
-from typing import TypedDict, Optional
-from datetime import datetime
 import time
-from langgraph.graph import StateGraph, END
+from datetime import datetime
 
-# -------- IMPORTS --------
-from agents.monitoring_agent import get_avg_cpu
-from agents.llm_reasoning import decide_action_llm
-from agents.healing_agent import heal
-from core.memory import count_recent_fails
-from core.reporter import generate_incident_report, save_report
+from langgraph.graph import END, StateGraph
+
+from agents.diagnostician_agent import diagnose
+from agents.executor_agent import execute
+from agents.monitoring_agent import get_avg_cpu, get_memory_usage
+from agents.planner_agent import plan_action
+from agents.reporter_agent import build_summary
+from agents.safety_agent import evaluate_safety
+from agents.supervisor import route_after_monitor, route_after_safety
+from agents.verifier_agent import verify
 from config.threshold import CPU_HIGH_THRESHOLD
+from core.agent_state import IncidentState, trace_update
+from core.memory import count_recent_fails
+from core.reporter import save_report
 
-class IncidentState(TypedDict):
-    cpu_before: float
-    cpu_after: Optional[float]
-    decision: Optional[str]
-    state: str
 
-# -------- NODES --------
-
-def monitor_node(state: IncidentState):
+def monitor_node(state: IncidentState) -> dict:
     cpu = get_avg_cpu()
-    print("DEBUG: avg_cpu=", cpu)
+    memory = get_memory_usage()
+    anomaly = cpu >= CPU_HIGH_THRESHOLD
+    incident_type = "HIGH_CPU" if anomaly else None
+    system_state = "HIGH_CPU" if anomaly else "NORMAL"
 
-    if cpu < CPU_HIGH_THRESHOLD:
+    output = {
+        "cpu_before": cpu,
+        "memory_before": memory,
+        "anomaly_detected": anomaly,
+        "incident_type": incident_type,
+        "state": system_state,
+    }
+
+    if not anomaly:
         print("SYSTEM: CPU within safe limits, no action required")
 
-    return {
-        "cpu_before": cpu,
-        "state": "HIGH_CPU" if cpu >= CPU_HIGH_THRESHOLD else "NORMAL"
-    }
-
-
-def decide_node(state: IncidentState):
-    fails = count_recent_fails("HIGH_CPU")
-
-    decision = decide_action_llm(
-        state=state["state"],
-        cpu_before=state["cpu_before"],
-        cpu_after=None,
-        recent_failures=fails
+    trace = trace_update(
+        state,
+        "MonitorAgent",
+        f"cpu={cpu:.3f}, memory={memory:.0f}",
+        output,
     )
+    return {**output, **trace}
 
-    for r in decision["reasoning"]:
-        print("LLM_REASON:", r)
+
+def diagnostician_node(state: IncidentState) -> dict:
+    result = diagnose(
+        incident_type=state["incident_type"],
+        cpu_before=state["cpu_before"],
+        memory_before=state.get("memory_before"),
+    )
+    for line in result.get("hypothesis", []):
+        print("DIAG_HYPOTHESIS:", line)
+
+    trace = trace_update(
+        state,
+        "DiagnosticianAgent",
+        f"incident={state['incident_type']}",
+        result,
+    )
+    return {"rca": result["rca"], **trace}
+
+
+def planner_node(state: IncidentState) -> dict:
+    fails = count_recent_fails(state["incident_type"])
+    result = plan_action(
+        incident_type=state["incident_type"],
+        cpu_before=state["cpu_before"],
+        rca=state.get("rca", ""),
+        recent_failures=fails,
+    )
+    for r in result.get("reasoning", []):
+        print("PLANNER:", r)
+
+    trace = trace_update(
+        state,
+        "PlannerAgent",
+        f"rca={state.get('rca', '')[:80]}",
+        result,
+    )
+    return {"proposed_action": result["proposed_action"], **trace}
+
+
+def safety_node(state: IncidentState) -> dict:
+    result = evaluate_safety(
+        proposed_action=state["proposed_action"],
+        incident_type=state["incident_type"],
+    )
+    for r in result.get("reasoning", []):
+        print("SAFETY:", r)
+
+    trace = trace_update(
+        state,
+        "SafetyCriticAgent",
+        f"proposed={state['proposed_action']}",
+        result,
+    )
     return {
-        "decision": decision["decision"]
+        "safety_verdict": result["safety_verdict"],
+        "decision": result["decision"],
+        **trace,
     }
 
 
-def heal_node(state: IncidentState):
+def execute_node(state: IncidentState) -> dict:
+    print("Executing approved heal action...")
+    result = execute(state["decision"], state["incident_type"])
+    print(result["detail"])
 
-    print("Executing heal action...")
-    heal("HIGH_CPU")
+    trace = trace_update(
+        state,
+        "ExecutorAgent",
+        f"decision={state['decision']}",
+        result,
+    )
+    return trace
 
+
+def verify_node(state: IncidentState) -> dict:
     print("Waiting for system stabilization...")
-    time.sleep(10) 
+    time.sleep(10)
 
-    cpu_after = get_avg_cpu()
-    print("DEBUG: avg_cpu=", cpu_after)
+    result = verify(state["cpu_before"], state["decision"])
+    print(result["detail"])
 
-    return {
-        "cpu_after": cpu_after
-    }
-
-def escalate_node(state: IncidentState):
-    print("Escalation triggered — human intervention required")
-    state["escalated"]=True
-    return {
-        "cpu_after": state["cpu_before"]
-    }
-
-def generate_incident_report(
-    incident_type,
-    cpu_before,
-    cpu_after,
-    action_taken,
-    success,
-):
-    return {
-        "timestamp": datetime.now().isoformat(),
-        "incident_type": incident_type,
-        "cpu_before": cpu_before,
-        "cpu_after": cpu_after,
-        "action_taken": action_taken,
-        "success": success,
-    }
-
-def verify_node(state: IncidentState):
-    success = state["cpu_after"] < CPU_HIGH_THRESHOLD
-
-    report = generate_incident_report(
-        incident_type="HIGH_CPU",
-        cpu_before=state["cpu_before"],
-        cpu_after=state["cpu_after"],
-        action_taken=state["decision"],
-        success=success,
+    trace = trace_update(
+        state,
+        "VerifierAgent",
+        f"decision={state['decision']}",
+        result,
     )
+    return {"cpu_after": result["cpu_after"], **trace}
 
+
+def report_node(state: IncidentState) -> dict:
+    cpu_after = state.get("cpu_after")
+    if cpu_after is None:
+        cpu_after = get_avg_cpu()
+
+    decision = state.get("decision", "do_nothing")
+    success = (
+        decision == "heal"
+        and cpu_after < CPU_HIGH_THRESHOLD
+        and (state["cpu_before"] - cpu_after) >= 0.05
+    )
+    if decision == "escalate":
+        success = False
+
+    summary = build_summary(
+        incident_type=state["incident_type"],
+        cpu_before=state["cpu_before"],
+        cpu_after=cpu_after,
+        decision=decision,
+        success=success,
+        rca=state.get("rca"),
+        agent_trace=state.get("agent_trace") or [],
+    )
+    print("REPORT:", summary)
+
+    report = {
+        "timestamp": datetime.now().isoformat(),
+        "incident_type": state["incident_type"],
+        "cpu_before": state["cpu_before"],
+        "cpu_after": cpu_after,
+        "memory_before": state.get("memory_before"),
+        "action_taken": decision,
+        "success": success,
+        "rca": state.get("rca"),
+        "summary": summary,
+        "agent_trace": state.get("agent_trace") or [],
+    }
     save_report(report)
     print("Incident report saved")
 
-    return {}
+    trace = trace_update(state, "ReporterAgent", "final summary", summary)
+    return {"cpu_after": cpu_after, "success": success, "summary": summary, **trace}
 
-
-# -------- GRAPH --------
 
 graph = StateGraph(IncidentState)
 
 graph.add_node("monitor", monitor_node)
-graph.add_node("decide", decide_node)
-graph.add_node("heal", heal_node)
-graph.add_node("escalate", escalate_node)
+graph.add_node("diagnose", diagnostician_node)
+graph.add_node("plan", planner_node)
+graph.add_node("safety", safety_node)
+graph.add_node("execute", execute_node)
 graph.add_node("verify", verify_node)
+graph.add_node("report", report_node)
 
 graph.set_entry_point("monitor")
 
-graph.add_edge("monitor", "decide")
+graph.add_conditional_edges("monitor", route_after_monitor, {
+    "diagnose": "diagnose",
+    END: END,
+})
 
-graph.add_conditional_edges(
-    "decide",
-    lambda s: s["decision"],
-    {
-        "heal": "heal",
-        "escalate": "escalate",
-        "do_nothing": END
-    }
-)
+graph.add_edge("diagnose", "plan")
+graph.add_edge("plan", "safety")
 
-graph.add_edge("heal", "verify")
-graph.add_edge("escalate", "verify")
-graph.add_edge("verify", END)
+graph.add_conditional_edges("safety", route_after_safety, {
+    "execute": "execute",
+    "report": "report",
+    END: END,
+})
+
+graph.add_edge("execute", "verify")
+graph.add_edge("verify", "report")
+graph.add_edge("report", END)
 
 incident_graph = graph.compile()
-

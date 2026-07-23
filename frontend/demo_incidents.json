@@ -4,15 +4,39 @@
     "incident_type": "HIGH_CPU",
     "cpu_before": 1.0,
     "cpu_after": 0.60,
+    "memory_before": 52428800,
     "action_taken": "heal",
-    "success": true
+    "success": true,
+    "rca": "Traffic spike caused nginx worker saturation.",
+    "summary": "[RESOLVED] HIGH_CPU incident. CPU 1.000 → 0.600. Action: heal.",
+    "agent_trace": [
+      {"agent": "MonitorAgent", "input_summary": "cpu=1.000", "output": {"anomaly_detected": true}, "timestamp": "2026-01-14T16:52:40"},
+      {"agent": "DiagnosticianAgent", "input_summary": "incident=HIGH_CPU", "output": {"rca": "Traffic spike caused nginx worker saturation."}, "timestamp": "2026-01-14T16:52:41"},
+      {"agent": "PlannerAgent", "input_summary": "rca=traffic spike", "output": {"proposed_action": "heal"}, "timestamp": "2026-01-14T16:52:42"},
+      {"agent": "SafetyCriticAgent", "input_summary": "proposed=heal", "output": {"safety_verdict": "approved"}, "timestamp": "2026-01-14T16:52:42"},
+      {"agent": "ExecutorAgent", "input_summary": "decision=heal", "output": {"executed": true}, "timestamp": "2026-01-14T16:52:43"},
+      {"agent": "VerifierAgent", "input_summary": "decision=heal", "output": {"recovered": true}, "timestamp": "2026-01-14T16:52:44"},
+      {"agent": "ReporterAgent", "input_summary": "final summary", "output": "[RESOLVED] HIGH_CPU incident.", "timestamp": "2026-01-14T16:52:45"}
+    ]
   },
   {
     "timestamp": "2026-01-14T17:18:53",
     "incident_type": "HIGH_CPU",
     "cpu_before": 0.85,
     "cpu_after": 0.62,
+    "memory_before": 48234496,
     "action_taken": "heal",
-    "success": true
+    "success": true,
+    "rca": "Sustained load from health-check loop.",
+    "summary": "[RESOLVED] HIGH_CPU incident. CPU 0.850 → 0.620. Action: heal.",
+    "agent_trace": [
+      {"agent": "MonitorAgent", "input_summary": "cpu=0.850", "output": {"anomaly_detected": true}, "timestamp": "2026-01-14T17:18:48"},
+      {"agent": "DiagnosticianAgent", "input_summary": "incident=HIGH_CPU", "output": {"rca": "Sustained load from health-check loop."}, "timestamp": "2026-01-14T17:18:49"},
+      {"agent": "PlannerAgent", "input_summary": "rca=health-check loop", "output": {"proposed_action": "heal"}, "timestamp": "2026-01-14T17:18:50"},
+      {"agent": "SafetyCriticAgent", "input_summary": "proposed=heal", "output": {"safety_verdict": "approved"}, "timestamp": "2026-01-14T17:18:50"},
+      {"agent": "ExecutorAgent", "input_summary": "decision=heal", "output": {"executed": true}, "timestamp": "2026-01-14T17:18:51"},
+      {"agent": "VerifierAgent", "input_summary": "decision=heal", "output": {"recovered": true}, "timestamp": "2026-01-14T17:18:52"},
+      {"agent": "ReporterAgent", "input_summary": "final summary", "output": "[RESOLVED] HIGH_CPU incident.", "timestamp": "2026-01-14T17:18:53"}
+    ]
   }
 ]
